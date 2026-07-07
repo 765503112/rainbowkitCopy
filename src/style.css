@@ -1,0 +1,377 @@
+/* 组件最外层容器。 */
+.rwk-root {
+  position: relative;
+  display: inline-flex;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1f2937;
+}
+
+/* 所有按钮统一重置浏览器默认样式。 */
+.rwk-connect,
+.rwk-account,
+.rwk-network-button,
+.rwk-disconnect,
+.rwk-wallet,
+.rwk-network-item,
+.rwk-close {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* 未连接时的主按钮：蓝色背景，白色文字。 */
+.rwk-connect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 8px;
+  background: #1677ff;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgb(22 119 255 / 24%);
+}
+
+/* 主按钮悬停反馈。 */
+.rwk-connect:hover {
+  background: #0f68e8;
+}
+
+/* 正在连接时按钮不可重复点击。 */
+.rwk-connect:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+/* 已连接后账户和网络按钮的排列容器。 */
+.rwk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 已连接后的账户按钮。 */
+.rwk-account,
+.rwk-network-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: #1677ff;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* 网络按钮略浅一点，让它和账户按钮有层次。 */
+.rwk-network-button {
+  background: #0f68e8;
+}
+
+/* 已连接状态小绿点。 */
+.rwk-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+/* 全屏遮罩层，点击背景可关闭弹窗。 */
+.rwk-overlay {
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(15 23 42 / 42%);
+}
+
+/* 通用弹窗主体。 */
+.rwk-modal {
+  position: relative;
+  overflow: hidden;
+  width: min(720px, 100%);
+  max-height: min(640px, calc(100vh - 48px));
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 28%);
+}
+
+/* 钱包连接弹窗使用左右两栏布局。 */
+.rwk-wallet-modal {
+  display: grid;
+  grid-template-columns: minmax(220px, 284px) 1fr;
+  min-height: 492px;
+}
+
+/* 左侧钱包列表区域。 */
+.rwk-modal-sidebar {
+  padding: 20px;
+  border-right: 1px solid #eef0f4;
+  background: #ffffff;
+}
+
+/* 弹窗标题。 */
+.rwk-modal-title {
+  margin-bottom: 24px;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+/* 钱包列表分组标题。 */
+.rwk-modal-section-label {
+  margin: 0 0 10px;
+  color: #1677ff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* 钱包列表项。 */
+.rwk-wallet {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+  color: #1f2937;
+  text-align: left;
+  font-weight: 800;
+}
+
+/* 钱包列表项悬停态。 */
+.rwk-wallet:hover {
+  background: #eef5ff;
+}
+
+/* 当前正在连接的钱包高亮。 */
+.rwk-wallet-active {
+  background: #1677ff;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgb(22 119 255 / 24%);
+}
+
+/* 钱包 logo 图片。 */
+.rwk-wallet-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 7px;
+}
+
+/* 钱包安装状态。 */
+.rwk-wallet small {
+  color: #8b95a5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* 高亮项里的状态文字改成白色半透明。 */
+.rwk-wallet-active small {
+  color: rgb(255 255 255 / 80%);
+}
+
+/* 弹窗右侧主区域。 */
+.rwk-modal-main {
+  position: relative;
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  padding: 40px;
+}
+
+/* 右上角关闭按钮。 */
+.rwk-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f0f1f3;
+  color: #6b7280;
+  font-size: 24px;
+  line-height: 1;
+}
+
+/* 连接状态区域。 */
+.rwk-connect-status {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  color: #1f2937;
+  text-align: center;
+}
+
+/* 连接状态里的大 logo。 */
+.rwk-status-logo {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+}
+
+/* 连接状态主文字。 */
+.rwk-connect-status strong {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+/* 连接状态辅助文字。 */
+.rwk-connect-status span {
+  color: #9ca3af;
+  font-weight: 700;
+}
+
+/* 简单 loading 圆环。 */
+.rwk-spinner {
+  width: 24px;
+  height: 24px;
+  margin-top: 12px;
+  border: 3px solid #d1d5db;
+  border-top-color: #1677ff;
+  border-radius: 50%;
+  animation: rwk-spin 0.8s linear infinite;
+}
+
+/* loading 旋转动画。 */
+@keyframes rwk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 网络和账户弹窗尺寸。 */
+.rwk-network-modal,
+.rwk-account-modal {
+  width: min(420px, 100%);
+  padding: 24px;
+}
+
+/* 网络列表。 */
+.rwk-network-list {
+  display: grid;
+  gap: 10px;
+}
+
+/* 网络列表项。 */
+.rwk-network-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #111827;
+  text-align: left;
+}
+
+/* 网络列表项悬停。 */
+.rwk-network-item:hover {
+  background: #eef5ff;
+}
+
+/* 当前网络高亮。 */
+.rwk-network-active {
+  background: #e8f2ff;
+  box-shadow: inset 0 0 0 1px #1677ff;
+}
+
+/* 网络名称和说明。 */
+.rwk-network-item span {
+  display: grid;
+  gap: 2px;
+}
+
+/* 网络辅助说明。 */
+.rwk-network-item small {
+  color: #6b7280;
+}
+
+/* 右侧状态文字。 */
+.rwk-network-item em {
+  color: #1677ff;
+  font-style: normal;
+  font-weight: 800;
+}
+
+/* 账户信息行。 */
+.rwk-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  text-transform: capitalize;
+}
+
+/* 断开连接按钮。 */
+.rwk-disconnect {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+/* 错误消息。 */
+.rwk-error {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  left: 24px;
+  margin: 0;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 手机屏幕下弹窗改成单栏。 */
+@media (max-width: 640px) {
+  .rwk-root,
+  .rwk-connect,
+  .rwk-actions {
+    width: 100%;
+  }
+
+  .rwk-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .rwk-overlay {
+    padding: 14px;
+  }
+
+  .rwk-wallet-modal {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .rwk-modal-main {
+    min-height: 220px;
+    border-top: 1px solid #eef0f4;
+  }
+
+  .rwk-modal-sidebar {
+    border-right: 0;
+  }
+}
