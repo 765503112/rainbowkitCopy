@@ -21,6 +21,8 @@ import type { WalletContextValue, WalletEventMap, WalletId, WalletProviderProps,
 
 // DEFAULT_TIMEOUT_MS 是默认钱包连接超时时间，30 秒。
 const DEFAULT_TIMEOUT_MS = 30_000;
+// CONNECTING_TIMEOUT_GRACE_MS 是兜底计时器的缓冲时间，避免和真实连接 Promise 同一毫秒竞争。
+const CONNECTING_TIMEOUT_GRACE_MS = 1_000;
 // DEFAULT_STORAGE_KEY 是 localStorage 里保存钱包同步状态的默认 key。
 const DEFAULT_STORAGE_KEY = 'rainbow-wallet-kit:wallet-state';
 
@@ -351,6 +353,34 @@ export function WalletProvider({
       void connect(initialWallet).catch(() => undefined);
     }
   }, [autoConnect, connect, initialWallet]);
+
+  // 这个 effect 是连接状态兜底：如果钱包弹窗没有返回结果，也会自动结束 Connecting。
+  useEffect(() => {
+    // 只有正在连接时才需要兜底计时。
+    if (state.status !== 'connecting') return;
+    // 计算这次 connecting 已经持续了多久。
+    const elapsedMs = Date.now() - state.updatedAt;
+    // 真实超时时间再加一点缓冲，避免正常连接刚完成时被兜底覆盖。
+    const timeoutMs = Math.max(0, connectTimeoutMs + CONNECTING_TIMEOUT_GRACE_MS - elapsedMs);
+    // 设置兜底定时器。
+    const timer = window.setTimeout(() => {
+      // 创建统一的连接超时错误。
+      const error = new WalletKitError('CONNECT_TIMEOUT', 'Wallet connection timed out.');
+      // 如果这个钱包还有 pending 连接锁，先清理掉，用户才能再次点击连接。
+      if (state.wallet) pendingConnectionsRef.current.delete(state.wallet);
+      // 发布 disconnected，避免按钮一直显示 Connecting。
+      publishState({
+        status: 'disconnected',
+        wallet: state.wallet,
+        error,
+        updatedAt: Date.now(),
+      });
+      // 通过事件总线通知外部错误监听者。
+      emitterRef.current.emit('error', error);
+    }, timeoutMs);
+    // 状态变化或组件卸载时清理定时器。
+    return () => window.clearTimeout(timer);
+  }, [connectTimeoutMs, publishState, state.status, state.updatedAt, state.wallet]);
 
   // 这个 effect 监听钱包扩展自身的事件，例如用户在 MetaMask 里手动切网络。
   useEffect(() => {

@@ -76,6 +76,14 @@ export function ConnectWalletButton({
       });
   };
 
+  // closeModal 统一关闭弹窗，并清理当前弹窗里的临时选中钱包。
+  const closeModal = () => {
+    // 关闭当前弹窗。
+    setModal(null);
+    // 清掉右侧正在打开钱包的展示状态。
+    setActiveWallet(undefined);
+  };
+
   // handleSwitchNetwork 处理点击网络列表项后的切网流程。
   const handleSwitchNetwork = (networkId: string) => {
     // 记录正在切换的网络。
@@ -93,7 +101,7 @@ export function ConnectWalletButton({
   // renderWalletModal 渲染连接钱包弹窗。
   const renderWalletModal = () => (
     // 遮罩层覆盖页面背景。
-    <div className="rwk-overlay" role="presentation" onMouseDown={() => setModal(null)}>
+    <div className="rwk-overlay" role="presentation" onMouseDown={closeModal}>
       {/* 弹窗主体阻止点击冒泡，避免点击内容区也关闭。 */}
       <div className="rwk-modal rwk-wallet-modal" role="dialog" aria-label="Connect wallet" onMouseDown={(event) => event.stopPropagation()}>
         {/* 左侧钱包列表。 */}
@@ -117,7 +125,7 @@ export function ConnectWalletButton({
 
         {/* 右侧连接状态。 */}
         <div className="rwk-modal-main">
-          <button className="rwk-close" type="button" aria-label="Close" onClick={() => setModal(null)}>
+          <button className="rwk-close" type="button" aria-label="Close" onClick={closeModal}>
             ×
           </button>
           <div className="rwk-connect-status">
@@ -143,9 +151,9 @@ export function ConnectWalletButton({
 
   // renderNetworkModal 渲染网络切换弹窗。
   const renderNetworkModal = () => (
-    <div className="rwk-overlay" role="presentation" onMouseDown={() => setModal(null)}>
+    <div className="rwk-overlay" role="presentation" onMouseDown={closeModal}>
       <div className="rwk-modal rwk-network-modal" role="dialog" aria-label="Switch network" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="rwk-close" type="button" aria-label="Close" onClick={() => setModal(null)}>
+        <button className="rwk-close" type="button" aria-label="Close" onClick={closeModal}>
           ×
         </button>
         <div className="rwk-modal-title">切换网络</div>
@@ -176,9 +184,9 @@ export function ConnectWalletButton({
 
   // renderAccountModal 渲染已连接账户弹窗。
   const renderAccountModal = () => (
-    <div className="rwk-overlay" role="presentation" onMouseDown={() => setModal(null)}>
+    <div className="rwk-overlay" role="presentation" onMouseDown={closeModal}>
       <div className="rwk-modal rwk-account-modal" role="dialog" aria-label="Wallet account" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="rwk-close" type="button" aria-label="Close" onClick={() => setModal(null)}>
+        <button className="rwk-close" type="button" aria-label="Close" onClick={closeModal}>
           ×
         </button>
         <div className="rwk-modal-title">钱包账户</div>
@@ -215,7 +223,15 @@ export function ConnectWalletButton({
   // 未连接状态展示蓝色连接按钮。
   return (
     <div className={`rwk-root ${className}`}>
-      <button className="rwk-connect" type="button" disabled={state.status === 'connecting'} onClick={() => setModal('wallets')}>
+      <button
+        className="rwk-connect"
+        type="button"
+        disabled={state.status === 'connecting'}
+        onClick={() => {
+          setActiveWallet(undefined);
+          setModal('wallets');
+        }}
+      >
         {state.status === 'connecting' ? 'Connecting...' : label}
       </button>
       {modal === 'wallets' ? renderWalletModal() : null}

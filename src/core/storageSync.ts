@@ -5,6 +5,15 @@ import type { WalletEventMap, WalletState } from '../types';
 
 // SYNC_EVENT 是 BroadcastChannel 的频道名，多 Tab 会通过同一个名字通信。
 const SYNC_EVENT = 'rainbow-wallet-kit:state';
+// SyncPayload 是跨 Tab 传输的钱包状态消息格式。
+type SyncPayload = {
+  // tabId 标记消息来自哪个 Tab。
+  tabId: string;
+  // storageKey 标记消息属于哪一个业务实例，避免 demo 和真实项目互相串状态。
+  storageKey: string;
+  // state 是要同步的钱包状态。
+  state: WalletState;
+};
 
 // WalletStateSync 负责把钱包状态同步到其它浏览器 Tab。
 export class WalletStateSync {
@@ -28,9 +37,9 @@ export class WalletStateSync {
       // 创建指定频道名的 BroadcastChannel。
       this.channel = new BroadcastChannel(SYNC_EVENT);
       // 监听其它 Tab 发来的消息。
-      this.channel.onmessage = (event: MessageEvent<{ tabId: string; state: WalletState }>) => {
-        // 如果消息不是当前 Tab 自己发的，就处理它。
-        if (event.data?.tabId !== this.tabId) {
+      this.channel.onmessage = (event: MessageEvent<SyncPayload>) => {
+        // 如果消息不是当前 Tab 自己发的，并且属于同一个 storageKey，就处理它。
+        if (event.data?.tabId !== this.tabId && event.data?.storageKey === this.storageKey) {
           // 把其它 Tab 的状态通过事件总线发给 React Provider。
           this.emitter.emit('state', event.data.state);
         }
@@ -46,7 +55,7 @@ export class WalletStateSync {
     // 非浏览器环境不支持 localStorage 和 BroadcastChannel。
     if (typeof window === 'undefined') return;
     // payload 里带 tabId，方便其它 Tab 判断消息来源。
-    const payload = { tabId: this.tabId, state };
+    const payload: SyncPayload = { tabId: this.tabId, storageKey: this.storageKey, state };
     // 写入 localStorage，刷新页面或新 Tab 可以读取最近状态。
     localStorage.setItem(this.storageKey, JSON.stringify(payload));
     // 通过 BroadcastChannel 实时通知其它 Tab。
@@ -65,7 +74,16 @@ export class WalletStateSync {
     // try/catch 防止 localStorage 里数据损坏导致页面崩溃。
     try {
       // 把 JSON 字符串解析成对象。
-      const parsed = JSON.parse(raw) as { state?: WalletState };
+      const parsed = JSON.parse(raw) as Partial<SyncPayload>;
+      // 如果上一次页面关闭或刷新时还在 connecting，不能恢复这个临时状态。
+      if (parsed.state?.status === 'connecting') {
+        // 恢复成 disconnected，避免按钮刷新后永远显示 Connecting。
+        return {
+          status: 'disconnected',
+          wallet: parsed.state.wallet,
+          updatedAt: Date.now(),
+        };
+      }
       // 返回里面的钱包状态。
       return parsed.state;
     } catch {
@@ -92,9 +110,9 @@ export class WalletStateSync {
     // try/catch 防止其它脚本写入异常 JSON 导致报错。
     try {
       // 解析其它 Tab 写入的状态 payload。
-      const payload = JSON.parse(event.newValue) as { tabId: string; state: WalletState };
+      const payload = JSON.parse(event.newValue) as SyncPayload;
       // 如果不是当前 Tab 自己写的，就继续同步。
-      if (payload.tabId !== this.tabId) {
+      if (payload.tabId !== this.tabId && payload.storageKey === this.storageKey) {
         // 通过事件总线发出 state 事件。
         this.emitter.emit('state', payload.state);
       }

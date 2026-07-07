@@ -38,7 +38,7 @@ function WalletDebugPanel() {
 
 function App() {
   return (
-    <WalletProvider>
+    <WalletProvider connectTimeoutMs={12_000} storageKey="rainbow-wallet-kit:demo:v2">
       <main className="demo-shell">
         <div className="demo-header">
           <div>
