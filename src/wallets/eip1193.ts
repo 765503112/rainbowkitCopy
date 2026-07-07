@@ -3,9 +3,62 @@ import { getWalletDeepLink } from '../core/deepLinks';
 // 引入统一错误类，找不到钱包或连接失败时会抛出。
 import { WalletKitError } from '../types';
 // 引入这个文件需要的类型定义。
-import type { DeepLinkConfig, WalletAccount, WalletAdapter, WalletId, WalletNetwork } from '../types';
+import type { DeepLinkConfig, WalletAccount, WalletAdapter, WalletAdapterEventHandlers, WalletId, WalletNetwork } from '../types';
 // 引入 EIP-1193 Provider 的类型定义。
-import type { Eip1193Provider } from './providerTypes';
+import type { Eip1193Provider, Eip6963ProviderDetail } from './providerTypes';
+
+// eip6963Providers 保存 EIP-6963 标准发现到的钱包 provider。
+const eip6963Providers = new Map<string, Eip6963ProviderDetail>();
+
+// listenForEip6963Providers 在模块加载时监听钱包主动广播的 provider。
+function listenForEip6963Providers(): void {
+  // 非浏览器环境不处理。
+  if (typeof window === 'undefined') return;
+  // 避免重复注册监听。
+  if ((window as Window & { __rwkEip6963Listening?: boolean }).__rwkEip6963Listening) return;
+  // 标记已经注册过监听。
+  (window as Window & { __rwkEip6963Listening?: boolean }).__rwkEip6963Listening = true;
+  // 监听 EIP-6963 钱包广播事件。
+  window.addEventListener('eip6963:announceProvider', ((event: CustomEvent<Eip6963ProviderDetail>) => {
+    // 保存钱包 provider，key 用 rdns 更稳定。
+    eip6963Providers.set(event.detail.info.rdns, event.detail);
+  }) as EventListener);
+  // 主动请求钱包广播 provider。
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+}
+
+// 模块初始化时尝试开启 EIP-6963 监听。
+listenForEip6963Providers();
+
+// requestEip6963Provider 主动请求并等待指定钱包的 EIP-6963 provider。
+async function requestEip6963Provider(wallet: WalletId): Promise<Eip1193Provider | undefined> {
+  // 非浏览器环境没有钱包 provider。
+  if (typeof window === 'undefined') return undefined;
+  // 确保监听已开启。
+  listenForEip6963Providers();
+  // 请求钱包重新广播 provider。
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  // 给钱包扩展一点时间响应广播。
+  await new Promise((resolve) => window.setTimeout(resolve, 50));
+  // 找到符合目标钱包的 provider。
+  const detail = [...eip6963Providers.values()].find((item) => isMatchingEip6963Wallet(wallet, item));
+  // 返回匹配的钱包 provider。
+  return detail?.provider;
+}
+
+// isMatchingEip6963Wallet 判断 EIP-6963 钱包信息是否匹配目标钱包。
+function isMatchingEip6963Wallet(wallet: WalletId, detail: Eip6963ProviderDetail): boolean {
+  // rdns 转小写，方便兼容大小写差异。
+  const rdns = detail.info.rdns.toLowerCase();
+  // name 转小写，作为 rdns 不标准时的兜底。
+  const name = detail.info.name.toLowerCase();
+  // MetaMask 常见 rdns 是 io.metamask。
+  if (wallet === 'metamask') return rdns.includes('metamask') || name.includes('metamask');
+  // OKX 常见 rdns 可能包含 okx 或 okex。
+  if (wallet === 'okx') return rdns.includes('okx') || rdns.includes('okex') || name.includes('okx');
+  // 这个文件只处理 EVM 钱包。
+  return false;
+}
 
 // pickInjectedProvider 负责从浏览器 window 上找到指定钱包注入的 provider。
 function pickInjectedProvider(wallet: WalletId): Eip1193Provider | undefined {
@@ -53,6 +106,16 @@ function pickInjectedProvider(wallet: WalletId): Eip1193Provider | undefined {
   return undefined;
 }
 
+// pickInjectedProviderAsync 优先通过 EIP-6963 精准选择钱包，再回退到传统注入字段。
+async function pickInjectedProviderAsync(wallet: WalletId): Promise<Eip1193Provider | undefined> {
+  // EIP-6963 可以避免多个钱包共存时 window.ethereum 触发选择钱包弹窗。
+  const eip6963Provider = await requestEip6963Provider(wallet);
+  // 如果发现了目标钱包 provider，就直接用它。
+  if (eip6963Provider) return eip6963Provider;
+  // 否则回退到传统 window.ethereum/window.okxwallet 逻辑。
+  return pickInjectedProvider(wallet);
+}
+
 // collectInjectedProviders 收集浏览器里可能存在的钱包 provider。
 function collectInjectedProviders(wallet: WalletId): Eip1193Provider[] {
   // 这些是常见的 EVM 钱包注入位置。
@@ -96,6 +159,14 @@ function hexToNumber(hex?: string): number | undefined {
   if (!hex) return undefined;
   // Number.parseInt(hex, 16) 表示按 16 进制解析字符串。
   return Number.parseInt(hex, 16);
+}
+
+// normalizeChainId 把钱包事件里可能出现的十六进制 chainId 统一转成数字。
+function normalizeChainId(chainId: string | number): string | number {
+  // 字符串且 0x 开头时按十六进制转成数字。
+  if (typeof chainId === 'string' && chainId.startsWith('0x')) return hexToNumber(chainId) ?? chainId;
+  // 其它格式直接返回。
+  return chainId;
 }
 
 // toHexChainId 把数字或十进制字符串链 ID 转成钱包要求的 0x 十六进制格式。
@@ -163,7 +234,7 @@ export function createEvmAdapter(options: {
     // connect 是真正发起钱包连接的方法。
     connect: async (): Promise<WalletAccount> => {
       // 每次连接前重新找 provider，避免页面加载后钱包才注入导致拿不到。
-      const provider = pickInjectedProvider(options.id);
+      const provider = await pickInjectedProviderAsync(options.id);
       // 如果没有 provider，说明浏览器没有检测到对应钱包。
       if (!provider) {
         // 抛出统一的未找到钱包错误。
@@ -192,7 +263,7 @@ export function createEvmAdapter(options: {
     // signMessage 负责让 EVM 钱包签名一段文本。
     signMessage: async (message: string, account: WalletAccount): Promise<string> => {
       // 签名前重新找 provider，保证拿到当前可用的钱包对象。
-      const provider = pickInjectedProvider(options.id);
+      const provider = await pickInjectedProviderAsync(options.id);
       // 如果 provider 不存在，就抛出未找到钱包错误。
       if (!provider) throw new WalletKitError('PROVIDER_NOT_FOUND', `${options.name} provider was not found.`);
       // personal_sign 是 EVM 钱包常用的文本签名方法。
@@ -211,7 +282,7 @@ export function createEvmAdapter(options: {
         throw new WalletKitError('UNSUPPORTED_CHAIN', `${options.name} only supports EVM networks.`);
       }
       // 切换前重新获取 provider。
-      const provider = pickInjectedProvider(options.id);
+      const provider = await pickInjectedProviderAsync(options.id);
       // 如果 provider 不存在，就抛出未找到钱包错误。
       if (!provider) throw new WalletKitError('PROVIDER_NOT_FOUND', `${options.name} provider was not found.`);
       // 请求钱包切换或添加网络。
@@ -227,6 +298,61 @@ export function createEvmAdapter(options: {
         address,
         chainType: 'evm',
         chainId: Number(network.chainId),
+      };
+    },
+    // disconnect 尝试撤销当前站点的钱包账户授权。
+    disconnect: async (): Promise<void> => {
+      // 断开时优先使用精准 provider。
+      const provider = await pickInjectedProviderAsync(options.id);
+      // 如果没有 provider，就没有可撤销的授权。
+      if (!provider) return;
+      // wallet_revokePermissions 是 MetaMask 等钱包支持的撤销站点授权方法。
+      await provider
+        .request({
+          method: 'wallet_revokePermissions',
+          params: [{ eth_accounts: {} }],
+        })
+        // 不是所有钱包都支持撤销授权，不支持时忽略，组件状态仍会断开。
+        .catch(() => undefined);
+    },
+    // subscribe 监听钱包扩展主动发出的链切换、账户切换、断开事件。
+    subscribe: (handlers: WalletAdapterEventHandlers): (() => void) => {
+      // 获取当前钱包 provider。
+      const provider = pickInjectedProvider(options.id);
+      // 如果 provider 不支持事件监听，就返回空清理函数。
+      if (!provider?.on) return () => undefined;
+
+      // chainChanged 是 EVM 钱包手动切链时触发的事件。
+      const handleChainChanged = (chainId: unknown) => {
+        // 把 chainId 统一格式后通知 Provider。
+        handlers.onChainChanged?.(normalizeChainId(chainId as string | number));
+      };
+      // accountsChanged 是 EVM 钱包手动切账号或断开账号时触发的事件。
+      const handleAccountsChanged = (accounts: unknown) => {
+        // 钱包通常返回 string[]，这里做一下兜底判断。
+        handlers.onAccountsChanged?.(Array.isArray(accounts) ? (accounts as string[]) : []);
+      };
+      // disconnect 是钱包扩展断开连接时触发的事件。
+      const handleDisconnect = () => {
+        // 通知 Provider 当前钱包已断开。
+        handlers.onDisconnect?.();
+      };
+
+      // 注册链切换事件。
+      provider.on('chainChanged', handleChainChanged);
+      // 注册账户切换事件。
+      provider.on('accountsChanged', handleAccountsChanged);
+      // 注册断开事件。
+      provider.on('disconnect', handleDisconnect);
+
+      // 返回清理函数，Provider 卸载或切换钱包时会调用。
+      return () => {
+        // 如果 provider 支持 removeListener，就移除链切换监听。
+        provider.removeListener?.('chainChanged', handleChainChanged);
+        // 移除账户切换监听。
+        provider.removeListener?.('accountsChanged', handleAccountsChanged);
+        // 移除断开监听。
+        provider.removeListener?.('disconnect', handleDisconnect);
       };
     },
     // getDeepLink 生成移动端打开当前钱包 App 的链接。

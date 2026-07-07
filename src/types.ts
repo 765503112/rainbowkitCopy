@@ -224,8 +224,20 @@ export interface WalletAdapter {
   signMessage: (message: string, account: WalletAccount) => Promise<string>;
   // switchNetwork 负责请求钱包切换网络，不支持的钱包可以不实现。
   switchNetwork?: (network: WalletNetwork) => Promise<WalletAccount | undefined>;
+  // subscribe 负责监听钱包扩展自己的事件，例如手动切链或切账号。
+  subscribe?: (handlers: WalletAdapterEventHandlers) => () => void;
   // getDeepLink 负责生成移动端打开钱包 App 的链接。
   getDeepLink: (targetUrl: string) => string;
+}
+
+// WalletAdapterEventHandlers 是钱包适配器对外通知事件时使用的回调集合。
+export interface WalletAdapterEventHandlers {
+  // onChainChanged 在钱包扩展手动切换网络时触发。
+  onChainChanged?: (chainId: string | number) => void;
+  // onAccountsChanged 在钱包扩展手动切换账户或断开账户时触发。
+  onAccountsChanged?: (accounts: string[]) => void;
+  // onDisconnect 在钱包扩展断开连接时触发。
+  onDisconnect?: () => void;
 }
 
 // WalletEventMap 定义 EventEmitter 里支持的事件和对应数据。

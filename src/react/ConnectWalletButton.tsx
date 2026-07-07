@@ -103,6 +103,7 @@ export function ConnectWalletButton({
           {orderedWallets.map((wallet) => (
             <button
               className={`rwk-wallet ${activeWallet === wallet.id ? 'rwk-wallet-active' : ''}`}
+              disabled={Boolean(activeWallet)}
               key={wallet.id}
               type="button"
               onClick={() => handleConnect(wallet.id)}

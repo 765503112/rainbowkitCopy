@@ -1,6 +1,6 @@
 {
   "name": "@qinzhehan/rainbow-wallet-kit",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "A RainbowKit-style wallet connect component with MetaMask, OKX Wallet, and Phantom support.",
   "license": "MIT",
   "type": "module",

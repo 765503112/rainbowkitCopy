@@ -41,6 +41,8 @@ export type {
   WalletAccount,
   // WalletAdapter 表示钱包适配器接口。
   WalletAdapter,
+  // WalletAdapterEventHandlers 表示钱包扩展事件监听回调。
+  WalletAdapterEventHandlers,
   // WalletAuthConfig 表示签名登录配置。
   WalletAuthConfig,
   // WalletContextValue 表示 useWallet 返回值。

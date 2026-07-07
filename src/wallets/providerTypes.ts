@@ -22,6 +22,26 @@ export interface Eip1193Provider {
   removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
 }
 
+// Eip6963ProviderInfo 是 EIP-6963 标准里钱包上报的元信息。
+export interface Eip6963ProviderInfo {
+  // uuid 是钱包 provider 的唯一标识。
+  uuid: string;
+  // name 是钱包名称。
+  name: string;
+  // icon 是钱包图标。
+  icon: string;
+  // rdns 是钱包反向域名标识，例如 io.metamask。
+  rdns: string;
+}
+
+// Eip6963ProviderDetail 是 EIP-6963 钱包发现事件里携带的数据。
+export interface Eip6963ProviderDetail {
+  // info 是钱包元信息。
+  info: Eip6963ProviderInfo;
+  // provider 是对应钱包的 EIP-1193 provider。
+  provider: Eip1193Provider;
+}
+
 // PhantomSolanaProvider 描述 Phantom 注入的 Solana provider 形状。
 export interface PhantomSolanaProvider {
   // isPhantom 是 Phantom 常用识别标记。

@@ -178,10 +178,15 @@ export function WalletProvider({
         } catch (error) {
           // 把任意底层错误转换成 WalletKitError。
           const normalized = normalizeWalletError(error);
-          // 发布 error 状态，方便 UI 展示。
+          // 用户取消、重复请求、超时都应恢复成可点击状态，避免按钮一直 Connecting。
+          const recoverableStatus =
+            normalized.code === 'USER_REJECTED' || normalized.code === 'REQUEST_PENDING' || normalized.code === 'CONNECT_TIMEOUT'
+              ? 'disconnected'
+              : 'error';
+          // 发布错误状态，方便 UI 展示。
           publishState({
-            // 标记状态为 error。
-            status: 'error',
+            // 可恢复错误标记为 disconnected，其它错误标记为 error。
+            status: recoverableStatus,
             // 记录出错的钱包。
             wallet: walletId,
             // 保存归一化错误。
@@ -346,6 +351,58 @@ export function WalletProvider({
       void connect(initialWallet).catch(() => undefined);
     }
   }, [autoConnect, connect, initialWallet]);
+
+  // 这个 effect 监听钱包扩展自身的事件，例如用户在 MetaMask 里手动切网络。
+  useEffect(() => {
+    // 只有 connected 状态且当前有钱包时才需要监听。
+    if (state.status !== 'connected' || !state.wallet || !state.account) return;
+    // 找到当前钱包适配器。
+    const wallet = wallets.find((item) => item.id === state.wallet);
+    // 如果适配器没有 subscribe 方法，就无法监听钱包事件。
+    if (!wallet?.subscribe) return;
+
+    // 注册钱包事件监听，并拿到取消监听函数。
+    const unsubscribe = wallet.subscribe({
+      // 钱包扩展手动切链时触发。
+      onChainChanged: (chainId) => {
+        // 只更新 chainId，保持当前连接状态和地址不变。
+        publishState({
+          ...state,
+          account: {
+            ...state.account!,
+            chainId,
+          },
+          error: undefined,
+          updatedAt: Date.now(),
+        });
+      },
+      // 钱包扩展手动切账户或断开账户时触发。
+      onAccountsChanged: (accounts) => {
+        // 如果账户数组为空，说明用户在钱包里断开了当前站点授权。
+        if (!accounts.length) {
+          void disconnect();
+          return;
+        }
+        // 否则把地址更新成钱包当前选中的第一个账户。
+        publishState({
+          ...state,
+          account: {
+            ...state.account!,
+            address: accounts[0],
+          },
+          error: undefined,
+          updatedAt: Date.now(),
+        });
+      },
+      // 钱包扩展主动断开时同步断开组件状态。
+      onDisconnect: () => {
+        void disconnect();
+      },
+    });
+
+    // 组件状态变化或卸载时移除事件监听，避免重复注册。
+    return unsubscribe;
+  }, [disconnect, publishState, state, wallets]);
 
   // 这个 effect 处理 JWT 自动续期。
   useEffect(() => {

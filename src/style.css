@@ -153,6 +153,12 @@
   background: #eef5ff;
 }
 
+/* 连接过程中禁用其它钱包项，避免重复弹授权。 */
+.rwk-wallet:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 /* 当前正在连接的钱包高亮。 */
 .rwk-wallet-active {
   background: #1677ff;

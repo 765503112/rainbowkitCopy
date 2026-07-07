@@ -9,6 +9,9 @@ RainbowKit-style React wallet component packaged as ESM, CJS, UMD and TypeScript
 - Phantom detection supports both `window.phantom.solana` and `window.solana`
 - Centered wallet modal with backdrop, wallet logos and extension confirmation status
 - EVM network switcher with common default chains
+- EVM wallet `chainChanged` and `accountsChanged` events keep the button state in sync
+- EIP-6963 provider discovery for more precise wallet selection when multiple wallets are installed
+- EVM disconnect attempts `wallet_revokePermissions` so the site authorization is actually revoked when supported
 - EventEmitter-driven wallet state with BroadcastChannel/localStorage multi-tab sync
 - Nonce signature verification hooks
 - JWT auto-renewal helper
