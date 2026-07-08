@@ -16,6 +16,8 @@ export interface Eip1193Provider {
   request: <T = unknown>(args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<T>;
   // isConnected 是部分钱包提供的连接状态检查方法。
   isConnected?: () => boolean;
+  // disconnect 是部分钱包提供的非标准断开方法。
+  disconnect?: () => Promise<void>;
   // on 用来监听钱包事件，比如账号切换、链切换。
   on?: (event: string, listener: (...args: unknown[]) => void) => void;
   // removeListener 用来移除钱包事件监听。

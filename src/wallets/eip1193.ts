@@ -219,6 +219,65 @@ async function switchEvmNetwork(provider: Eip1193Provider, network: WalletNetwor
   }
 }
 
+// tryRequest 尝试调用钱包 request，失败时返回 false，方便按多个断开方案兜底。
+async function tryRequest(provider: Eip1193Provider, method: string, params?: unknown[]): Promise<boolean> {
+  // try/catch 避免某个钱包不支持某个方法时中断后续兜底方案。
+  try {
+    // 调用指定钱包 RPC 方法。
+    await provider.request({ method, params });
+    // 调用成功返回 true。
+    return true;
+  } catch {
+    // 调用失败返回 false。
+    return false;
+  }
+}
+
+// getConnectedAccounts 读取当前站点还能访问的钱包账户。
+async function getConnectedAccounts(provider: Eip1193Provider): Promise<string[]> {
+  // eth_accounts 不会弹窗，只返回当前站点已经授权的账户。
+  const accounts = await provider.request<string[]>({ method: 'eth_accounts' }).catch(() => []);
+  // 钱包正常会返回字符串数组，这里做类型兜底。
+  return Array.isArray(accounts) ? accounts : [];
+}
+
+// disconnectEvmProvider 尽量撤销当前站点在 EVM 钱包里的账户授权。
+async function disconnectEvmProvider(provider: Eip1193Provider, walletName: string): Promise<void> {
+  // 先记录断开前是否真的有账户授权。
+  const beforeAccounts = await getConnectedAccounts(provider);
+  // 如果本来就没有授权账户，直接认为已断开。
+  if (!beforeAccounts.length) return;
+
+  // wallet_revokePermissions 是 MetaMask 官方支持的撤销当前站点账户权限方法。
+  const revoked = await tryRequest(provider, 'wallet_revokePermissions', [{ eth_accounts: {} }]);
+  // wallet_disconnect 是部分 EVM 钱包可能提供的非标准断开方法。
+  const disconnectedByRpc = await tryRequest(provider, 'wallet_disconnect');
+  // disconnect 是 OKX 等部分 provider 可能提供的非标准 JS 方法。
+  const disconnectedByMethod = await provider
+    .disconnect?.()
+    .then(() => true)
+    .catch(() => false);
+
+  // 断开后再次读取账户，确认钱包扩展里已经撤销当前站点授权。
+  const afterAccounts = await getConnectedAccounts(provider);
+  // 如果账户为空，说明钱包已经真正断开。
+  if (!afterAccounts.length) return;
+
+  // 有些钱包会异步更新授权状态，稍等一下再检查一次。
+  await new Promise((resolve) => window.setTimeout(resolve, 150));
+  // 再次读取账户。
+  const finalAccounts = await getConnectedAccounts(provider);
+  // 如果最终为空，说明断开成功。
+  if (!finalAccounts.length) return;
+
+  // 如果所有断开方案都没让账户授权消失，就明确抛错，不再假装成功。
+  throw new WalletKitError(
+    'DISCONNECT_FAILED',
+    `${walletName} did not revoke the current site connection. Please disconnect this site in the wallet extension.`,
+    { revoked, disconnectedByRpc, disconnectedByMethod },
+  );
+}
+
 // createEvmAdapter 创建 MetaMask 或 OKX 这种 EVM 钱包的统一适配器。
 export function createEvmAdapter(options: {
   // id 只能是 metamask 或 okx。
@@ -330,20 +389,16 @@ export function createEvmAdapter(options: {
     },
     // disconnect 尝试撤销当前站点的钱包账户授权。
     disconnect: async (): Promise<void> => {
-      // 断开时优先使用精准 provider。
-      const provider = await pickInjectedProviderAsync(options.id);
+      // 断开时优先使用当前真实连接过的 provider。
+      const provider = activeProvider ?? (await pickInjectedProviderAsync(options.id));
       // 如果没有 provider，就没有可撤销的授权。
       if (!provider) return;
       // 记住断开使用的钱包对象。
       rememberProvider(provider);
-      // wallet_revokePermissions 是 MetaMask 等钱包支持的撤销站点授权方法。
-      await provider
-        .request({
-          method: 'wallet_revokePermissions',
-          params: [{ eth_accounts: {} }],
-        })
-        // 不是所有钱包都支持撤销授权，不支持时忽略，组件状态仍会断开。
-        .catch(() => undefined);
+      // 尝试真正撤销当前站点的钱包账户授权。
+      await disconnectEvmProvider(provider, options.name);
+      // 断开成功后清掉当前 provider 记忆。
+      activeProvider = undefined;
     },
     // subscribe 监听钱包扩展主动发出的链切换、账户切换、断开事件。
     subscribe: (handlers: WalletAdapterEventHandlers): (() => void) => {

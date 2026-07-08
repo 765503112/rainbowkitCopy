@@ -234,19 +234,34 @@ export function WalletProvider({
   const disconnect = useCallback(async () => {
     // 根据当前 state.wallet 找到对应钱包适配器。
     const wallet = wallets.find((item) => item.id === state.wallet);
-    // 如果钱包适配器提供 disconnect，就调用它。
-    await wallet?.disconnect?.();
-    // 创建断开后的状态。
-    const nextState: WalletState = {
-      // 标记为 disconnected。
-      status: 'disconnected',
-      // 更新时间戳。
-      updatedAt: Date.now(),
-    };
-    // 发布断开状态。
-    publishState(nextState);
-    // 发出 disconnect 事件。
-    emitterRef.current.emit('disconnect', undefined);
+    // try/catch 用来确保断开失败时不再假装钱包已经断开。
+    try {
+      // 如果钱包适配器提供 disconnect，就调用它。
+      await wallet?.disconnect?.();
+      // 创建断开后的状态。
+      const nextState: WalletState = {
+        // 标记为 disconnected。
+        status: 'disconnected',
+        // 更新时间戳。
+        updatedAt: Date.now(),
+      };
+      // 发布断开状态。
+      publishState(nextState);
+      // 发出 disconnect 事件。
+      emitterRef.current.emit('disconnect', undefined);
+    } catch (error) {
+      // 把底层钱包断开失败转成统一错误。
+      const normalized =
+        error instanceof WalletKitError && error.code === 'DISCONNECT_FAILED'
+          ? error
+          : new WalletKitError('DISCONNECT_FAILED', 'Failed to disconnect wallet.', error);
+      // 保留当前连接状态，同时记录错误，提醒业务或 UI 钱包授权还没有撤销。
+      publishState({ ...state, error: normalized, updatedAt: Date.now() });
+      // 发出 error 事件。
+      emitterRef.current.emit('error', normalized);
+      // 抛给按钮或业务方处理。
+      throw normalized;
+    }
   }, [publishState, state.wallet, wallets]);
 
   // switchNetwork 用来请求当前钱包切换网络。

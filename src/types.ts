@@ -181,6 +181,8 @@ export type WalletKitErrorCode =
   | 'UNSUPPORTED_CHAIN'
   // SWITCH_NETWORK_FAILED 表示钱包切换网络失败。
   | 'SWITCH_NETWORK_FAILED'
+  // DISCONNECT_FAILED 表示组件请求钱包断开授权失败。
+  | 'DISCONNECT_FAILED'
   // UNKNOWN 表示无法归类的未知错误。
   | 'UNKNOWN';
 
